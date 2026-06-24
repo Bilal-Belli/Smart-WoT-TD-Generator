@@ -197,11 +197,17 @@ async function callLLM(model, systemPrompt, userPrompt) {
         apiKey = process.env.GEMINI_API_KEY;
     } else if (model === 'openai') {
         apiKey = process.env.OPENAI_API_KEY;
-    } else {
+    } else if (model === 'deepseek') {
+        apiKey = process.env.OPENROUTER_API_KEY;
+    } else if (model === 'ollama') {
+        apiKey = process.env.OLLAMA_API_KEY; 
+    } else if (model === 'mistral') {
         apiKey = process.env.MISTRAL_API_KEY;
     }
 
-    if (!apiKey) throw new Error(`Missing API Key for ${model}. Please check your .env file.`);
+    if (!apiKey) {
+        throw new Error(`Missing API Key for ${model}. Please check your .env file.`);
+    }
 
     // 2. Handle Gemini API
     if (model === 'gemini') {
@@ -235,7 +241,7 @@ async function callLLM(model, systemPrompt, userPrompt) {
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: 'gpt-4o', // or gpt-4o-mini
+                model: 'gpt-4o', 
                 response_format: { type: "json_object" },
                 messages: [
                     { role: 'system', content: systemPrompt },
@@ -255,8 +261,58 @@ async function callLLM(model, systemPrompt, userPrompt) {
         }
         return data.choices[0].message.content;
 
-    // 4. Handle Mistral API
-    } else {
+    // 4. Handle DeepSeek API
+    } else if (model === 'deepseek') {
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: 'openrouter/free', 
+                response_format: { type: "json_object" }, 
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ]
+            })
+        });
+
+        const data = await res.json();
+        if (!data.choices || data.choices.length === 0) {
+            throw new Error(`Deepseek returned empty choices. Response: ${JSON.stringify(data)}`);
+        }
+        return data.choices[0].message.content;
+
+    // 5. Handle Online/Cloud Ollama API
+    } else if (model === 'ollama') {
+        const res = await fetch('http://localhost:11434/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama3.1', // Change this to your locally pulled model (e.g., 'deepseek-r1')
+                format: 'json',  // Forces structured JSON output matching your other providers
+                stream: false,   // Ensures we get a single complete response instead of a stream
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: userPrompt }
+                ]
+            })
+        });
+
+        if (!res.ok) {
+            const errorText = await res.text();
+            throw new Error(`Ollama Local API HTTP ${res.status}: ${errorText}`);
+        }
+
+        const data = await res.json();
+        if (!data.message || !data.message.content) {
+            throw new Error(`Ollama returned empty content. Response: ${JSON.stringify(data)}`);
+        }
+        return data.message.content;
+    // 6. Handle Mistral API
+    } else if (model === 'mistral') {
         const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
             method: 'POST',
             headers: { 
@@ -283,9 +339,11 @@ async function callLLM(model, systemPrompt, userPrompt) {
             throw new Error(`Mistral returned empty choices. Response: ${JSON.stringify(data)}`);
         }
         return data.choices[0].message.content;
+        
+    } else {
+        throw new Error(`Unsupported model provider: ${model}`);
     }
 }
-
 // --- CORE AGENTIC LOOP ---
 app.post('/api/generate', async (req, res) => {
     const { prompt, model } = req.body;
