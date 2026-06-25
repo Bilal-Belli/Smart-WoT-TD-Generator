@@ -1,13 +1,21 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const app = express();
 const { execSync } = require('child_process');
+const pty = require('node-pty');
+const { Server } = require('socket.io');
+
 const PORT = 3000;
 
 app.use(express.json());
+app.use('/static', express.static('static'));
+
+const server = http.createServer(app);
+const io = new Server(server);
 
 // --- DATABASE SIMULATION ---
 const DB_FILE = 'things-database.json';
@@ -344,6 +352,7 @@ async function callLLM(model, systemPrompt, userPrompt) {
         throw new Error(`Unsupported model provider: ${model}`);
     }
 }
+
 // --- CORE AGENTIC LOOP ---
 app.post('/api/generate', async (req, res) => {
     const { prompt, model } = req.body;
@@ -420,10 +429,99 @@ Do NOT wrap in markdown code blocks. Output pure JSON only.`;
 
 // --- FRONTEND ---
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'static', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.get('/saved-things', (req, res) => {
+    res.sendFile(path.join(__dirname, 'static', 'saved-things.html')); 
+    // Adjust 'static' if your HTML files live in a different folder
+});
+
+app.get('/api/things', (req, res) => {
+    const filePath = path.join(__dirname, 'things-database.json');
+    
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            // If the file doesn't exist yet, return an empty array instead of crashing
+            if (err.code === 'ENOENT') {
+                return res.json([]);
+            }
+            return res.status(500).json({ error: 'Failed to read database' });
+        }
+        try {
+            res.json(JSON.parse(data));
+        } catch (parseErr) {
+            res.status(500).json({ error: 'Database file corrupted' });
+        }
+    });
+});
+
+app.get('/search-terminal', (req, res) => {
+    res.sendFile(path.join(__dirname, 'static', 'search-terminal.html'));
+});
+
+io.on('connection', (socket) => {
+    const shell = 'powershell.exe';
+    const args = [
+        '-NoProfile', 
+        '-ExecutionPolicy', 'Bypass', 
+        '-Command', 
+        `& C:\\Python312\\python.exe c:/Users/Hp/OneDrive/Bureau/RAG-TD/wot-rag.py`
+    ];
+
+    const pyTerminal = pty.spawn(shell, args, {
+        name: 'xterm-color',
+        cols: 80,
+        rows: 24,
+        cwd: 'c:/Users/Hp/OneDrive/Bureau/RAG-TD', // Sets working dir straight to your RAG project
+        env: process.env
+    });
+
+    // Stream everything the script logs directly to the user's web browser
+    pyTerminal.onData((data) => {
+        socket.emit('terminal-output', data);
+    });
+
+    // Capture incoming keystrokes from the web-UI
+    socket.on('terminal-input', (data) => {
+        pyTerminal.write(data);
+    });
+
+    // Clean up when page closes
+    socket.on('disconnect', () => {
+        pyTerminal.kill();
+    });
+});
+
+app.delete('/api/things/:index', (req, res) => {
+    const index = parseInt(req.params.index, 10);
+    const filePath = path.join(__dirname, 'things-database.json');
+    fs.readFile(filePath, 'utf8', (err, data) => {
+        if (err) {
+            return res.status(500).json({ success: false, error: 'Failed to read database' });
+        }
+        try {
+            let things = JSON.parse(data);
+            
+            if (index < 0 || index >= things.length) {
+                return res.status(400).json({ success: false, error: 'Invalid item index' });
+            }
+            // Remove the targeted item from the array
+            things.splice(index, 1);
+            // Write the updated array back to things-database.json
+            fs.writeFile(filePath, JSON.stringify(things, null, 2), (writeErr) => {
+                if (writeErr) {
+                    return res.status(500).json({ success: false, error: 'Failed to save updates' });
+                }
+                res.json({ success: true, message: 'Thing description deleted successfully' });
+            });
+        } catch (parseErr) {
+            res.status(500).json({ success: false, error: 'Database file corrupted' });
+        }
+    });
+});
+
+server.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     console.log(`Database file: ${DB_FILE}`);
 });
