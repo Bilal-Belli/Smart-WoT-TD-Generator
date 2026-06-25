@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart WoT</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <style>
+        .xterm-viewport::-webkit-scrollbar {
+            width: 8px;
+        }
+        .xterm-viewport::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        .xterm-viewport::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 4px;
+        }
+        .xterm-viewport::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen font-sans flex flex-col overflow-hidden">
+
+    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xl font-extrabold text-indigo-400 tracking-wide">RAG Search Terminal</span>
+            </div>
+            <a href="/" class="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md font-medium text-sm transition-all border border-gray-600 shadow-sm">
+                ← Back to Home
+            </a>
+        </div>
+    </nav>
+
+    <div class="flex-1 max-w-6xl w-full mx-auto p-8 flex flex-col space-y-4 overflow-hidden">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-300">Active RAG Engine</h1>
+            <p class="text-sm text-gray-400 mt-1">Interact with your CLI tool directly through the web shell interface below.</p>
+        </div>
+
+        <div class="flex-1 bg-black p-4 rounded-lg border border-gray-700 shadow-2xl relative overflow-hidden">
+            <div id="terminal-container" class="w-full h-full"></div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const term = new Terminal({
+            cursorBlink: true,
+            fontSize: 14,
+            fontFamily: 'Courier New, monospace',
+            theme: {
+                background: '#000000',
+                foreground: '#4ade80',
+                cursor: '#ffffff'
+            }
+        });
+
+        // 2. Initialize the Fit Addon
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+
+        term.open(document.getElementById('terminal-container'));
+        
+        // 3. Force calculation immediately after opening
+        fitAddon.fit();
+
+        // 4. Re-calculate grid lines if window resizes
+        window.addEventListener('resize', () => {
+            fitAddon.fit();
+        });
+
+        socket.on('terminal-output', (data) => {
+            term.write(data);
+        });
+
+        term.onData((data) => {
+            socket.emit('terminal-input', data);
+        });
+
+        term.writeln('Connecting to backend RAG server\r\n');
+    </script>
+</body>
+</html>

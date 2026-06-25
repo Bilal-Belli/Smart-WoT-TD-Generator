@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Smart WoT</title>
+    <link rel="icon" type="image/x-icon" href="/static/img/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+    <nav class="bg-gray-800 border-b border-gray-700 px-6 py-4 shadow-md sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="text-xl font-extrabold text-indigo-400 tracking-wide">Things Description Directory</span>
+            </div>
+            <a href="/" class="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md font-medium text-sm transition-all border border-gray-600 shadow-sm">
+                ← Back to Home
+            </a>
+        </div>
+    </nav>
+
+    <div class="max-w-6xl mx-auto p-8 space-y-6">
+        <h1 class="text-2xl font-bold border-b border-gray-800 pb-4 text-gray-300">Stored Thing Descriptions</h1>
+        
+        <div id="loadingState" class="text-center py-12 text-gray-400">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-4"></div>
+            Loading saved database
+        </div>
+
+        <div id="emptyState" class="hidden text-center py-12 bg-gray-800 rounded-lg border border-dashed border-gray-700">
+            <p class="text-gray-400 mb-2">No Thing Descriptions found in database yet.</p>
+            <p class="text-sm text-gray-500">Go back to the home page to generate your first device blueprint.</p>
+        </div>
+
+        <div id="thingsList" class="space-y-4 hidden"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', fetchSavedThings);
+
+        async function fetchSavedThings() {
+            const loading = document.getElementById('loadingState');
+            const empty = document.getElementById('emptyState');
+            const list = document.getElementById('thingsList');
+
+            try {
+                const response = await fetch('/api/things');
+                const data = await response.json();
+
+                loading.classList.add('hidden');
+
+                if (!Array.isArray(data) || data.length === 0) {
+                    empty.classList.remove('hidden');
+                    list.classList.add('hidden');
+                    return;
+                }
+
+                list.classList.remove('hidden');
+                empty.classList.add('hidden');
+                list.innerHTML = ''; 
+
+                data.forEach((thing, index) => {
+                    const title = thing.title || `Unnamed Device Blueprint #${index + 1}`;
+                    const description = thing.description || 'No descriptive summary provided.';
+
+                    const itemCard = document.createElement('div');
+                    itemCard.className = "bg-gray-800 border border-gray-700 rounded-lg p-5 shadow-sm space-y-3";
+                    
+                    itemCard.innerHTML = `
+                        <div class="flex items-center justify-between border-b border-gray-700 pb-2">
+                            <h3 class="text-lg font-bold text-indigo-300">${title}</h3>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-mono bg-gray-900 px-2 py-1 rounded text-gray-400">Item #${index + 1}</span>
+                                <button onclick="deleteThing(${index}, '${title.replace(/'/g, "\\'")}')" 
+                                        class="text-gray-400 hover:text-red-400 p-1 rounded hover:bg-gray-700 transition-colors"
+                                        title="Delete Blueprint">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-16v1a3 3 0 003 3h10M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-400">${description}</p>
+                        <details class="group bg-gray-900 rounded border border-gray-700 overflow-hidden">
+                            <summary class="list-none flex justify-between items-center p-3 cursor-pointer select-none text-xs font-semibold text-gray-400 hover:text-white transition-colors bg-gray-850">
+                                <span>VIEW COMPLETE JSON BLUEPRINT</span>
+                                <span class="transition group-open:rotate-180">▼</span>
+                            </summary>
+                            <div class="p-4 border-t border-gray-800 max-h-96 overflow-y-auto">
+                                <pre class="text-xs font-mono text-yellow-300 whitespace-pre-wrap">${JSON.stringify(thing, null, 2)}</pre>
+                            </div>
+                        </details>
+                    `;
+                    list.appendChild(itemCard);
+                });
+
+            } catch (error) {
+                loading.classList.add('hidden');
+                list.classList.remove('hidden');
+                list.innerHTML = `
+                    <div class="bg-red-900/30 border border-red-500 text-red-200 p-4 rounded-md">
+                        <strong>Error Fetching Data:</strong> ${error.message}. Ensure your server is running and file routes match.
+                    </div>`;
+            }
+        }
+
+        // DELETE HANDLER FUNCTION
+        async function deleteThing(index, title) {
+            if (!confirm(`Are you sure you want to delete "${title}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/things/${index}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+
+                if (result.success) {
+                    // Refresh layout components to show modifications
+                    fetchSavedThings();
+                } else {
+                    alert(`Error: ${result.error || 'Failed to delete item'}`);
+                }
+            } catch (error) {
+                alert(`System Error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
