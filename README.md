@@ -5,6 +5,9 @@ An intelligent, full-stack application designed to **generate**, **validate**, a
 This project integrates state-of-the-art Large Language Models (LLMs) with a robust self-correction validation loop and a highly optimized **two-stage Retrieval-Augmented Generation (RAG) search pipeline** to provide a seamless developer experience for WoT devices.
 
 ---
+## 🚀 Demo
+
+https://github.com/user-attachments/assets/a7bb78ba-3b34-4427-8b50-a5cd99752786
 
 ## 🚀 Key Features
 
