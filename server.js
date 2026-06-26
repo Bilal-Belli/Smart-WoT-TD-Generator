@@ -466,14 +466,14 @@ io.on('connection', (socket) => {
         '-NoProfile', 
         '-ExecutionPolicy', 'Bypass', 
         '-Command', 
-        `& C:\\Python312\\python.exe c:/Users/Hp/OneDrive/Bureau/RAG-TD/wot-rag.py`
+        `& C:\\Python312\\python.exe wot-rag.py`
     ];
 
     const pyTerminal = pty.spawn(shell, args, {
         name: 'xterm-color',
         cols: 80,
         rows: 24,
-        cwd: 'c:/Users/Hp/OneDrive/Bureau/RAG-TD', // Sets working dir straight to your RAG project
+        cwd: __dirname, // Sets working dir to the application directory
         env: process.env
     });
 
