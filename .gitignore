@@ -3,5 +3,6 @@
 /node_modules
 
 things-database.json
+smart_descriptions_cache.json
 
 /__pycache__
